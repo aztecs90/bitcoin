@@ -1,0 +1,109 @@
+<!-- Live BTC Price: Jump + Glow on Change -->
+<div id="wrap" style="background:#000; display:flex; align-items:center; justify-content:center; height:100vh; width:100vw; overflow:hidden;">
+  <div id="ticker" style="text-align:center; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;">
+    <div style="font-size: clamp(16px,2.5vw,28px); color:#9aa0a6; letter-spacing:.12em; text-transform:uppercase;">Bitcoin (BTC)</div>
+    <div style="display:flex; align-items:baseline; gap:0.5em; justify-content:center; margin-top:.15em;">
+      <span id="arrow" style="font-size: clamp(22px,5vw,64px); line-height:1;">•</span>
+      <span id="price" style="font-weight:900; font-size: clamp(48px,12vw,160px); line-height:1; color:#ffd400; text-shadow:0 0 0 rgba(0,0,0,0); display:inline-block;">Loading…</span>
+    </div>
+    <div id="delta" style="margin-top:.25em; font-size: clamp(12px,2vw,22px); color:#9aa0a6;">—</div>
+  </div>
+</div>
+
+<style>
+  @keyframes jump {
+    0%   { transform: translateY(0) scale(1);   }
+    30%  { transform: translateY(-14px) scale(1.06); }
+    60%  { transform: translateY(0) scale(1);   }
+    80%  { transform: translateY(-8px) scale(1.03); }
+    100% { transform: translateY(0) scale(1);   }
+  }
+  @keyframes glowUp {
+    0%   { text-shadow: 0 0 0 rgba(0,255,120,0); }
+    50%  { text-shadow: 0 0 24px rgba(0,255,120,0.85); }
+    100% { text-shadow: 0 0 0 rgba(0,255,120,0); }
+  }
+  @keyframes glowDown {
+    0%   { text-shadow: 0 0 0 rgba(255,60,60,0); }
+    50%  { text-shadow: 0 0 24px rgba(255,60,60,0.9); }
+    100% { text-shadow: 0 0 0 rgba(255,60,60,0); }
+  }
+  .jump { animation: jump .6s ease-out; }
+  .up   { color:#00e676 !important; animation: glowUp .9s ease-out; }
+  .down { color:#ff5252 !important; animation: glowDown .9s ease-out; }
+  .flat { color:#ffd400 !important; }
+</style>
+
+<script>
+  // --- Settings ---
+  const SYMBOL   = "BTCUSDT";              // Binance symbol
+  const REFRESH  = 3000;                   // ms
+  const PREC     = 2;                      // decimals
+
+  const priceEl = document.getElementById("price");
+  const arrowEl = document.getElementById("arrow");
+  const deltaEl = document.getElementById("delta");
+
+  let last = null;
+
+  function fmt(n) {
+    // Add thousand separators, fixed decimals
+    const num = Number(n);
+    return num.toLocaleString(undefined, {minimumFractionDigits: PREC, maximumFractionDigits: PREC});
+  }
+
+  function triggerAnimation(dirClass) {
+    // remove classes to retrigger animations
+    priceEl.classList.remove("jump","up","down","flat");
+    void priceEl.offsetWidth; // reflow
+    priceEl.classList.add("jump", dirClass);
+  }
+
+  async function getPrice() {
+    try {
+      const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${SYMBOL}`, { cache: "no-store" });
+      const j = await r.json();
+      const p = parseFloat(j.price);
+
+      if (!isFinite(p)) return;
+
+      // Direction & delta
+      let dir = "flat";
+      if (last !== null) {
+        if (p > last) dir = "up";
+        else if (p < last) dir = "down";
+      }
+
+      // UI updates
+      priceEl.textContent = `$${fmt(p)}`;
+
+      if (dir === "up") {
+        arrowEl.textContent = "▲";
+        arrowEl.style.color = "#00e676";
+        deltaEl.style.color = "#00e676";
+        deltaEl.textContent = `+${fmt(p - last)} from last tick`;
+      } else if (dir === "down") {
+        arrowEl.textContent = "▼";
+        arrowEl.style.color = "#ff5252";
+        deltaEl.style.color = "#ff5252";
+        deltaEl.textContent = `${fmt(p - last)} from last tick`;
+      } else {
+        arrowEl.textContent = "•";
+        arrowEl.style.color = "#ffd400";
+        deltaEl.style.color = "#9aa0a6";
+        deltaEl.textContent = "No change";
+      }
+
+      triggerAnimation(dir);
+      last = p;
+    } catch (e) {
+      deltaEl.style.color = "#ffab40";
+      deltaEl.textContent = "Network issue… retrying";
+      // (silently keep retrying)
+    }
+  }
+
+  // Start
+  getPrice();
+  setInterval(getPrice, REFRESH);
+</script>
